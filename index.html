@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playable Ads Viewer</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f4f7fa;
+            --sidebar-bg: #2c3e50;
+            --sidebar-text: #ecf0f1;
+            --card-bg: #ffffff;
+            --text-main: #333;
+            --text-muted: #7f8c8d;
+            --primary: #3498db;
+            --danger: #e74c3c;
+            --border: #e0e6ed;
+            --tag-bg: #e1f0fa;
+            --tag-hover: #cde6f7;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+        body { display: flex; height: 100vh; background-color: var(--bg-color); color: var(--text-main); overflow: hidden; }
+
+        /* Sidebar Overlay для мобилок */
+        .sidebar-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 150; }
+
+        /* Sidebar */
+        .sidebar { width: 250px; background-color: var(--sidebar-bg); color: var(--sidebar-text); display: flex; flex-direction: column; flex-shrink: 0; z-index: 200; transition: left 0.3s ease; }
+        .sidebar-header { padding: 20px; font-size: 1.2rem; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        .sidebar-header:hover { background-color: rgba(255,255,255,0.05); }
+        .folder-tree { padding: 15px; flex-grow: 1; overflow-y: auto; }
+        .folder { margin-bottom: 10px; }
+        .folder-title { display: flex; align-items: center; gap: 8px; padding: 5px; border-radius: 4px; cursor: pointer; transition: background 0.2s; font-weight: bold; }
+        .folder-title:hover { background-color: rgba(255,255,255,0.1); }
+        .sub-folder { margin-left: 24px; font-size: 0.95rem; color: #bdc3c7; display: flex; flex-direction: column; gap: 5px; margin-top: 5px;}
+        .sub-folder div { padding: 6px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s;}
+        .sub-folder div:hover { color: #fff; background-color: rgba(255,255,255,0.1); }
+
+        /* Main Content */
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; width: 100%; }
+        
+        /* Topbar */
+        .topbar { padding: 15px 30px; background-color: var(--card-bg); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .topbar-left { display: flex; align-items: center; gap: 15px; flex-grow: 1; }
+        .menu-toggle { display: none; background: none; border: none; cursor: pointer; color: var(--text-main); }
+        .search-container { display: flex; align-items: center; background: var(--bg-color); padding: 8px 15px; border-radius: 20px; width: 400px; max-width: 100%; border: 1px solid var(--border); }
+        .search-container input { border: none; background: transparent; outline: none; margin-left: 10px; width: 100%; font-size: 0.95rem; }
+        .filter-status { font-size: 0.85rem; color: var(--text-muted); font-weight: bold; white-space: nowrap; }
+        .user-profile { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+        /* Gallery Container */
+        .gallery-container { flex-grow: 1; overflow-y: auto; padding: 30px; }
+        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 25px; }
+        
+        /* Card */
+        .card { background-color: var(--card-bg); border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; transition: transform 0.2s, box-shadow 0.2s; display: flex; flex-direction: column;}
+        .card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        
+        .card-preview { aspect-ratio: 1 / 1; width: 100%; background-color: #e0e6ed; background-size: cover; background-position: center; border-bottom: 1px solid var(--border); }
+        
+        .card-info { padding: 15px; flex-grow: 1; display: flex; flex-direction: column; }
+        .card-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 5px; }
+        .card-path { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px; display: flex; align-items: center; gap: 4px; }
+        .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 5px; margin-top: auto; }
+        
+        /* Tags */
+        .tag { font-size: 0.75rem; background-color: var(--tag-bg); color: var(--primary); padding: 4px 10px; border-radius: 12px; cursor: pointer; transition: 0.2s; font-weight: bold; border: 1px solid transparent; }
+        .tag:hover { background-color: var(--tag-hover); border-color: var(--primary); }
+        .tag.date-tag { background-color: #f1f2f6; color: #576574; cursor: default; }
+        .tag.date-tag:hover { border-color: transparent; background-color: #f1f2f6; }
+        
+        .card-actions { padding: 10px 15px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background-color: #fafbfc; }
+        .btn-action { background: none; border: none; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; padding: 6px; border-radius: 6px; transition: 0.2s; }
+        .btn-action:hover { background-color: #e0e6ed; color: var(--primary); }
+        
+        .main-actions { display: flex; gap: 8px; }
+        .btn-play { background-color: var(--primary); color: white; padding: 6px 12px; font-size: 0.9rem; border-radius: 6px; display: flex; align-items: center; gap: 5px; border: none; cursor: pointer; font-weight: bold; }
+        .btn-play:hover { background-color: #2980b9; }
+
+        /* Dropdown */
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-content { display: none; position: absolute; right: 0; bottom: 100%; margin-bottom: 5px; background-color: white; min-width: 150px; box-shadow: 0px 8px 16px rgba(0,0,0,0.1); border-radius: 8px; z-index: 10; border: 1px solid var(--border); overflow: hidden; }
+        .dropdown-content button { width: 100%; text-align: left; padding: 10px 15px; border: none; background: none; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-main); }
+        .dropdown-content button:hover { background-color: #f1f1f1; }
+        .dropdown.active .dropdown-content { display: block; }
+
+        /* Modals */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 300; backdrop-filter: blur(3px); }
+        .modal-overlay.active { display: flex; }
+        .modal { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); position: relative; max-width: 90%; max-height: 90vh; overflow-y: auto; }
+        .modal-close { position: absolute; top: 10px; right: 10px; cursor: pointer; color: var(--text-muted); }
+        .modal-close:hover { color: var(--text-main); }
+        #qrModal .modal { text-align: center; width: 300px; }
+        #qrModal img { margin-top: 15px; width: 200px; height: 200px; border: 1px solid var(--border); border-radius: 8px; }
+        #previewModal .modal { width: 800px; height: 80vh; display: flex; flex-direction: column; }
+        #previewModal iframe { flex-grow: 1; border: 1px solid var(--border); border-radius: 8px; margin-top: 15px; width: 100%; height: 100%; }
+
+        /* АДАПТИВНОСТЬ */
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; left: -250px; height: 100%; }
+            .sidebar.active { left: 0; }
+            .sidebar-overlay.active { display: block; }
+            .topbar { flex-direction: column; align-items: flex-start; padding: 15px; gap: 15px; }
+            .topbar-left { width: 100%; }
+            .menu-toggle { display: block; }
+            .search-container { flex-grow: 1; width: auto; }
+            .filter-status { margin-left: 0; align-self: flex-start; }
+            .user-profile { display: none; }
+            .gallery-container { padding: 15px; }
+            .gallery { grid-template-columns: repeat(auto-fill, minmax(100%, 1fr)); gap: 15px; }
+            #previewModal .modal { width: 95%; height: 90vh; padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header" onclick="resetFilters()" title="Сбросить фильтры">
+            <span class="material-icons">gamepad</span> PlayableHub
+        </div>
+        <div class="folder-tree">
+            <div class="folder" onclick="resetFilters()">
+                <div class="folder-title"><span class="material-icons">view_module</span> Все плейблы</div>
+            </div>
+
+            <div class="folder">
+                <div class="folder-title" onclick="filterBySidebar('2026')"><span class="material-icons">folder</span> 2026 год</div>
+                <div class="sub-folder">
+                    <div onclick="filterBySidebar('2026', 'LDOE')"><span class="material-icons" style="font-size: 16px;">snippet_folder</span> LDOE</div>
+                    <div onclick="filterBySidebar('2026', 'SDC')"><span class="material-icons" style="font-size: 16px;">snippet_folder</span> SDC</div>
+                </div>
+            </div>
+
+            <div class="folder">
+                <div class="folder-title" onclick="filterBySidebar('2025')"><span class="material-icons">folder</span> 2025 год</div>
+                <div class="sub-folder">
+                    <div onclick="filterBySidebar('2025', 'LDOE')"><span class="material-icons" style="font-size: 16px;">snippet_folder</span> LDOE</div>
+                    <div onclick="filterBySidebar('2025', 'SDC')"><span class="material-icons" style="font-size: 16px;">snippet_folder</span> SDC</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <header class="topbar">
+            <div class="topbar-left">
+                <button class="menu-toggle" onclick="toggleSidebar()"><span class="material-icons">menu</span></button>
+                <div class="search-container">
+                    <span class="material-icons" style="color: var(--text-muted)">search</span>
+                    <input type="text" id="searchInput" placeholder="Поиск по названию, тегу, дате...">
+                </div>
+            </div>
+            <div id="filter-status" class="filter-status"></div>
+            <div class="user-profile">
+                <span class="material-icons">account_circle</span>
+                <span>Dev User</span>
+            </div>
+        </header>
+
+        <div class="gallery-container">
+            <div class="gallery" id="playable-gallery">
+                </div>
+        </div>
+    </main>
+
+    <div class="modal-overlay" id="qrModal" onclick="closeModals(event)">
+        <div class="modal">
+            <span class="material-icons modal-close" onclick="document.getElementById('qrModal').classList.remove('active')">close</span>
+            <h3>Отсканируйте для теста</h3>
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://example.com/playable" alt="QR Code">
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="previewModal" onclick="closeModals(event)">
+        <div class="modal">
+            <span class="material-icons modal-close" onclick="document.getElementById('previewModal').classList.remove('active')">close</span>
+            <h3 id="previewTitle" style="margin-bottom: 10px;">Preview</h3>
+            <iframe src="about:blank" title="Playable Preview"></iframe>
+        </div>
+    </div>
+
+    <script>
+        const mockPlayables = [
+            { id: 1, title: "LDOE Survival Intro", year: "2026", project: "LDOE", path: "2026 / LDOE / survival_v1", tags: ["#LDOE", "#инхаус"], date: "15.03.2026", color: "3498db" },
+            { id: 2, title: "SDC Character Select", year: "2026", project: "SDC", path: "2026 / SDC / char_sel_2", tags: ["#SDC", "#аутсорс"], date: "28.02.2026", color: "9b59b6" },
+            { id: 3, title: "LDOE Zombie Horde", year: "2026", project: "LDOE", path: "2026 / LDOE / horde_test", tags: ["#LDOE", "#аутсорс"], date: "10.01.2026", color: "1abc9c" },
+            { id: 4, title: "SDC Base Builder", year: "2026", project: "SDC", path: "2026 / SDC / base_build", tags: ["#SDC", "#инхаус"], date: "12.03.2026", color: "e67e22" },
+            { id: 5, title: "LDOE Crafting Minigame", year: "2026", project: "LDOE", path: "2026 / LDOE / craft_mini", tags: ["#LDOE", "#инхаус"], date: "18.02.2026", color: "e74c3c" },
+            { id: 6, title: "SDC Loot Box Open", year: "2026", project: "SDC", path: "2026 / SDC / lootbox_fx", tags: ["#SDC", "#инхаус"], date: "22.01.2026", color: "2ecc71" },
+            { id: 7, title: "LDOE Bunker Puzzle", year: "2025", project: "LDOE", path: "2025 / LDOE / bunker_hack", tags: ["#LDOE", "#аутсорс"], date: "15.12.2025", color: "f1c40f" },
+            { id: 8, title: "SDC Shooting Range", year: "2025", project: "SDC", path: "2025 / SDC / shooting_v1", tags: ["#SDC", "#инхаус"], date: "05.11.2025", color: "ff9ff3" },
+            { id: 9, title: "LDOE Stealth Kill", year: "2025", project: "LDOE", path: "2025 / LDOE / stealth_qte", tags: ["#LDOE", "#инхаус"], date: "01.11.2025", color: "f368e0" },
+            { id: 10, title: "SDC Map Explore", year: "2025", project: "SDC", path: "2025 / SDC / map_explore", tags: ["#SDC", "#аутсорс"], date: "20.10.2025", color: "48dbfb" },
+            { id: 11, title: "LDOE Dog Companion", year: "2025", project: "LDOE", path: "2025 / LDOE / dog_pet", tags: ["#LDOE", "#инхаус"], date: "12.09.2025", color: "8395a7" },
+            { id: 12, title: "SDC Turret Defense", year: "2025", project: "SDC", path: "2025 / SDC / turret_def", tags: ["#SDC", "#инхаус"], date: "02.09.2025", color: "54a0ff" },
+            { id: 13, title: "LDOE Chopper Ride", year: "2025", project: "LDOE", path: "2025 / LDOE / bike_run", tags: ["#LDOE", "#аутсорс"], date: "25.08.2025", color: "5f27cd" },
+            { id: 14, title: "SDC Boss Fight", year: "2025", project: "SDC", path: "2025 / SDC / boss_epic", tags: ["#SDC", "#инхаус"], date: "10.08.2025", color: "c8d6e5" },
+            { id: 15, title: "LDOE Base Raid", year: "2025", project: "LDOE", path: "2025 / LDOE / raid_pvp", tags: ["#LDOE", "#инхаус"], date: "15.07.2025", color: "01a3a4" }
+        ];
+
+        const gallery = document.getElementById('playable-gallery');
+        const statusText = document.getElementById('filter-status');
+        const searchInput = document.getElementById('searchInput');
+
+        function renderCards(data) {
+            gallery.innerHTML = ''; 
+            
+            if (data.length === 0) {
+                gallery.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 50px; color: #7f8c8d;">Плейблы не найдены</div>';
+                return;
+            }
+
+            data.forEach(item => {
+                const tagsHTML = item.tags.map(tag => 
+                    `<span class="tag" onclick="filterByTag('${tag}')" title="Фильтровать по ${tag}">${tag}</span>`
+                ).join('');
+                
+                // В блоке main-actions добавлена кнопка "Облако". В dropdown изменены пункты.
+                const cardHTML = `
+                    <div class="card">
+                        <div class="card-preview" style="background-image: url('https://placehold.co/400x400/${item.color}/ffffff?text=${item.project}')"></div>
+                        <div class="card-info">
+                            <div class="card-title">${item.title}</div>
+                            <div class="card-path"><span class="material-icons" style="font-size: 14px;">snippet_folder</span> ${item.path}</div>
+                            <div class="tags">
+                                ${tagsHTML}
+                                <span class="tag date-tag">${item.date}</span>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <div class="main-actions">
+                                <button class="btn-play" onclick="openPreview('${item.title}')"><span class="material-icons" style="font-size: 18px;">play_arrow</span> Play</button>
+                                <button class="btn-action" onclick="openQR()" title="Показать QR-код"><span class="material-icons">qr_code_2</span></button>
+                                <button class="btn-action" onclick="actionAlert('Открыть Google Диск', '${item.title}')" title="Google Диск с билдами"><span class="material-icons">cloud</span></button>
+                            </div>
+                            <div class="dropdown" onclick="toggleDropdown(this, event)">
+                                <button class="btn-action" title="Меню"><span class="material-icons">more_vert</span></button>
+                                <div class="dropdown-content">
+                                    <button onclick="actionAlert('Функция 1', '${item.title}')"><span class="material-icons" style="font-size: 18px;">build</span> Функция 1</button>
+                                    <button onclick="actionAlert('Функция 2', '${item.title}')"><span class="material-icons" style="font-size: 18px;">settings</span> Функция 2</button>
+                                    <button onclick="actionAlert('Функция 3', '${item.title}')"><span class="material-icons" style="font-size: 18px;">extension</span> Функция 3</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                gallery.innerHTML += cardHTML;
+            });
+        }
+
+        renderCards(mockPlayables);
+
+        // --- ЛОГИКА ПОИСКА ---
+        searchInput.addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase().trim();
+            
+            if (!query) {
+                resetFilters(); // Если поиск очищен, сбрасываем всё к исходному виду
+                return;
+            }
+
+            const filtered = mockPlayables.filter(item => {
+                // Собираем всё, по чему хотим искать, в одну строку и переводим в нижний регистр
+                const searchString = `${item.title} ${item.project} ${item.tags.join(' ')} ${item.date}`.toLowerCase();
+                return searchString.includes(query);
+            });
+
+            renderCards(filtered);
+            statusText.innerText = `Поиск: "${query}"`;
+        });
+
+        // --- ФИЛЬТРЫ И UI ---
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+            document.getElementById('sidebarOverlay').classList.toggle('active');
+        }
+
+        function closeSidebarOnMobile() {
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('active');
+                document.getElementById('sidebarOverlay').classList.remove('active');
+            }
+        }
+
+        function filterByTag(tag) {
+            const filtered = mockPlayables.filter(item => item.tags.includes(tag));
+            renderCards(filtered);
+            statusText.innerText = `Фильтр: ${tag}`;
+            searchInput.value = ''; // Очищаем строку поиска при клике на тег
+        }
+
+        function filterBySidebar(year, project) {
+            let filtered = mockPlayables.filter(item => item.year === year);
+            let status = `Год: ${year}`;
+            if (project) {
+                filtered = filtered.filter(item => item.project === project);
+                status += ` | Проект: ${project}`;
+            }
+            renderCards(filtered);
+            statusText.innerText = status;
+            searchInput.value = ''; // Очищаем строку поиска при клике в меню
+            closeSidebarOnMobile();
+        }
+
+        function resetFilters() {
+            renderCards(mockPlayables);
+            statusText.innerText = '';
+            searchInput.value = ''; // Очищаем строку поиска
+            closeSidebarOnMobile();
+        }
+
+        function openQR() { document.getElementById('qrModal').classList.add('active'); }
+        function openPreview(title) {
+            document.getElementById('previewTitle').innerText = 'Тест: ' + title;
+            document.getElementById('previewModal').classList.add('active');
+        }
+        function closeModals(e) {
+            if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('active');
+        }
+        function actionAlert(action, name) { alert(`Выбрано действие: "${action}" для плейбла "${name}".`); }
+        function toggleDropdown(element, event) {
+            document.querySelectorAll('.dropdown.active').forEach(dropdown => {
+                if (dropdown !== element) dropdown.classList.remove('active');
+            });
+            element.classList.toggle('active');
+            event.stopPropagation();
+        }
+        window.onclick = function() {
+            document.querySelectorAll('.dropdown.active').forEach(dropdown => { dropdown.classList.remove('active'); });
+        }
+    </script>
+</body>
+</html>
